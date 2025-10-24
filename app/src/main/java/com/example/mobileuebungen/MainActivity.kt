@@ -29,10 +29,12 @@ import androidx.compose.ui.unit.dp
 import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
+import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.LocationServices
 
 
 class MainActivity : ComponentActivity() {
-    val locationPermissionReqeust = registerForActivityResult(
+    val calendarPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         when {
@@ -54,6 +56,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val queue = Volley.newRequestQueue(this)
+        val geofencingClient = LocationServices.getGeofencingClient(this)
+        val geofence = Geofence.Builder()
+            .setCircularRegion(
+                49.4738, 8.5344,
+                50f
+            )
 
         enableEdgeToEdge()
         setContent {
@@ -62,14 +70,53 @@ class MainActivity : ComponentActivity() {
                 "https://rapla.dhbw.de/rapla/calendar?key=SF8qHSuYFD3SStyfcj4vvmAhUMdwoDn7AYC1DTtyyBmhFJAv8m_hIYVHpm9Ul6nMjqX11N94dkWx78kCdoJxR44ru1kegzIBOMCCSJVRikkSTGNCV0YyThLBR30y9hOaGryjvwt1kpad5g93Dkdn0A&salt=-218630611"
             var raplaResult by remember { mutableStateOf<RaplaResult?>(null) }
 
-            // changed: single root Column that fills the screen
             Column(
                 modifier = Modifier
                     .statusBarsPadding()
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                // top controls (no weight)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                ) {
+                    Text(
+                        text = "Upcoming Events",
+                        style = androidx.compose.material3.MaterialTheme.typography.headlineSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 15.dp)
+                    )
+
+                    Button(
+                        onClick = {
+                            getCalendarRequest()
+                        },
+                        enabled = status == Status.SUCCESS,
+                        modifier = Modifier.padding(bottom = 15.dp)
+                    ) { Text("Add to Calender") }
+
+                    val events = raplaResult?.weeks?.flatMap { it.events }
+                        ?: emptyList()
+
+                    // LazyColumn now has bounded height provided by the parent Column.weight(1f)
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(events) { event ->
+                            EventListItem(
+                                event.title,
+                                event.course!!,
+                                event.date,
+                                event.startTime,
+                                event.endTime,
+                                event.room ?: "No location specified",
+                            )
+                        }
+                    }
+                }
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -105,49 +152,6 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
-
-                // content area takes remaining space so LazyColumn gets bounded height
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
-                ) {
-                    Text(
-                        text = "Upcoming Events",
-                        style = androidx.compose.material3.MaterialTheme.typography.headlineSmall,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 15.dp)
-                    )
-
-                    Button(
-                        onClick = {
-                            getCalendarRequest()
-                        },
-                        enabled = status == Status.SUCCESS,
-                        modifier = Modifier.padding(bottom = 15.dp)
-                    ) { Text("Add Calender Events to Device") }
-
-                    val events = raplaResult?.weeks?.flatMap { it.events }
-                        ?: emptyList()
-
-                    // LazyColumn now has bounded height provided by the parent Column.weight(1f)
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(events) { event ->
-                            EventListItem(
-                                event.title,
-                                event.course!!,
-                                event.date,
-                                event.startTime,
-                                event.endTime,
-                                event.room ?: "No location specified",
-                            )
-                        }
-                    }
-                }
             }
         }
     }
@@ -158,7 +162,7 @@ class MainActivity : ComponentActivity() {
     }
 
     fun getCalendarRequest() {
-        locationPermissionReqeust.launch(
+        calendarPermissionRequest.launch(
             arrayOf(
                 Manifest.permission.READ_CALENDAR,
                 Manifest.permission.WRITE_CALENDAR
