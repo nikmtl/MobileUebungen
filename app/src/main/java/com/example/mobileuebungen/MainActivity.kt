@@ -31,6 +31,8 @@ import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.LocationServices
+import java.time.LocalDate
+import java.time.LocalDateTime
 
 
 class MainActivity : ComponentActivity() {
@@ -97,7 +99,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(bottom = 15.dp)
                     ) { Text("Add to Calender") }
 
-                    val events = raplaResult?.weeks?.flatMap { it.events }
+                    val events = raplaResult?.weeks?.flatMap { it.events }?.filter { LocalDate.now() <= it.date }?.sortedBy { it.date }
                         ?: emptyList()
 
                     // LazyColumn now has bounded height provided by the parent Column.weight(1f)
