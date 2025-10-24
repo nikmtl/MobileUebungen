@@ -81,7 +81,7 @@ class MainActivity : ComponentActivity() {
                                 val titles = raplaEvent.allEventTitles()
                                 Log.d("MainActivity", "Parsed Event Titles: $titles")
                             } else {
-                                Log.d("MainActivity", "Failed to parse Rapla events.")
+                                Log.e("MainActivity", "Failed to parse Rapla events.")
                             }
                         }, { error ->
                             status = Status.ERROR
@@ -113,8 +113,6 @@ class MainActivity : ComponentActivity() {
     fun html2RaplaEvent(html: String): RaplaResult? {
         val raplaParser = RaplaParser()
         return raplaParser.parse(html)
-
-
     }
 
     fun getCalendarRequest() {
