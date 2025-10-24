@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            var status by remember { mutableStateOf()}
+            var status by rememberSaveable { mutableStateOf(Status.READY)}
             val url =
                 "https://rapla.dhbw.de/rapla/calendar?key=SF8qHSuYFD3SStyfcj4vvmAhUMdwoDn7AYC1DTtyyBmhFJAv8m_hIYVHpm9Ul6nMjqX11N94dkWx78kCdoJxR44ru1kegzIBOMCCSJVRikkSTGNCV0YyThLBR30y9hOaGryjvwt1kpad5g93Dkdn0A&salt=-218630611"
 
@@ -72,9 +72,9 @@ class MainActivity : ComponentActivity() {
 
                 Button(
                     onClick = {
-                        status = "Fetching..."
+                        status = Status.FETCHING
                         val stringRequest = StringRequest(Request.Method.GET, url, {
-                            status = "Fetch completed."
+                            status = Status.SUCCESS
                             Log.d("MainActivity", "Fetched HTML: $it")
                             val raplaEvent = html2RaplaEvent(it)
                             if (raplaEvent != null) {
@@ -84,20 +84,27 @@ class MainActivity : ComponentActivity() {
                                 Log.d("MainActivity", "Failed to parse Rapla events.")
                             }
                         }, { error ->
-                            status = "Fetch failed. Retry?"
+                            status = Status.ERROR
                             Log.e("MainActivity", "Error fetching data: $error")
                         })
                         queue.add(stringRequest)
                     },
-                    enabled = status != "Fetching..."
+                    enabled = status != Status.FETCHING
                 ) {
-                    Text(status)
+                    Text(
+                        when (status) {
+                            Status.READY -> "Fetch Rapla Events"
+                            Status.FETCHING -> "Fetching..."
+                            Status.SUCCESS -> "Fetch completed."
+                            Status.ERROR -> "Fetch failed. Retry?"
+                        }
+                    )
                 }
                 Button(
                     onClick = {
                         getCalendarRequest()
                     },
-                    enabled = status == "Fetch completed."
+                    enabled = status == Status.SUCCESS
                 ) { Text("Add Calender Events to Device") }
             }
         }

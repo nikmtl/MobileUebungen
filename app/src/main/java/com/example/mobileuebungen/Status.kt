@@ -1,6 +1,6 @@
 package com.example.mobileuebungen
 
-enum class status {
+enum class Status {
     READY,
     FETCHING,
     SUCCESS,
