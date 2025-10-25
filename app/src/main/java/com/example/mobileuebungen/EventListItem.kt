@@ -26,7 +26,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun EventListItem(
     eventTitle: String,
-    courseTitle: String,
+    courseTitle: String?,
     date: LocalDate,
     startTime: String,
     endTime: String,
@@ -84,12 +84,14 @@ fun EventListItem(
             )
 
             // Course Title
-            Text(
-                text = courseTitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            if (courseTitle != null) {
+                Text(
+                    text = courseTitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
 
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 8.dp),

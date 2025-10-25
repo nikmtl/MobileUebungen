@@ -11,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -32,38 +33,14 @@ import com.android.volley.toolbox.Volley
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.LocationServices
 import java.time.LocalDate
-import java.time.LocalDateTime
 
 
 class MainActivity : ComponentActivity() {
-    val calendarPermissionRequest = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        when {
-
-            permissions.getOrDefault(Manifest.permission.WRITE_CALENDAR, false) -> {
-                Log.d("MainActivity", "Write access granted.")
-            }
-
-            permissions.getOrDefault(Manifest.permission.READ_CALENDAR, false) -> {
-                Log.d("MainActivity", "Read access granted.")
-            }
-
-            else -> {
-                Log.d("MainActivity", "No calendar access granted.")
-            }
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val queue = Volley.newRequestQueue(this)
-        val geofencingClient = LocationServices.getGeofencingClient(this)
-        val geofence = Geofence.Builder()
-            .setCircularRegion(
-                49.4738, 8.5344,
-                50f
-            )
+        val volleyRequestQueue =
+            Volley.newRequestQueue(this) // request queue for http calls with volley
+
 
         enableEdgeToEdge()
         setContent {
@@ -76,13 +53,13 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier
                     .statusBarsPadding()
                     .fillMaxSize()
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 0.dp)
             ) {
-                Column(
+                Row( // Top Row with Title
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
                 ) {
                     Text(
                         text = "Upcoming Events",
@@ -90,19 +67,15 @@ class MainActivity : ComponentActivity() {
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 15.dp)
                     )
-
-                    Button(
-                        onClick = {
-                            getCalendarRequest()
-                        },
-                        enabled = status == Status.SUCCESS,
-                        modifier = Modifier.padding(bottom = 15.dp)
-                    ) { Text("Add to Calender") }
-
-                    val events = raplaResult?.weeks?.flatMap { it.events }?.filter { LocalDate.now() <= it.date }?.sortedBy { it.date }
+                }
+                Column( // Event List
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    val events = raplaResult?.weeks?.flatMap { it.events }
+                        ?.filter { LocalDate.now() <= it.date }?.sortedBy { it.date }
                         ?: emptyList()
-
-                    // LazyColumn now has bounded height provided by the parent Column.weight(1f)
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.fillMaxSize()
@@ -110,7 +83,7 @@ class MainActivity : ComponentActivity() {
                         items(events) { event ->
                             EventListItem(
                                 event.title,
-                                event.course!!,
+                                event.course,
                                 event.date,
                                 event.startTime,
                                 event.endTime,
@@ -119,51 +92,92 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                //Lower Action Buttons
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .padding(7.dp)
+                        .padding(bottom = 16.dp)
+                        .fillMaxWidth()
                 ) {
-                    Button(
-                        onClick = {
-                            status = Status.FETCHING
-                            val stringRequest = StringRequest(Request.Method.GET, url, { html ->
-                                status = Status.SUCCESS
-                                val parsed = html2RaplaEvent(html)
-                                // update the Compose state so UI recomposes
-                                raplaResult = parsed
-                                Log.d(
-                                    "MainActivity",
-                                    "Parsed Event Titles: ${parsed?.allEventTitles()}"
-                                )
-                            }, { error ->
-                                status = Status.ERROR
-                                Log.e("MainActivity", "Error fetching data: $error")
-                            })
-                            queue.add(stringRequest)
-                        },
-                        enabled = status != Status.FETCHING
-                    ) {
-                        Text(
-                            when (status) {
-                                Status.READY -> "Fetch Rapla Events"
-                                Status.FETCHING -> "Fetching..."
-                                Status.SUCCESS -> "Fetch completed."
-                                Status.ERROR -> "Fetch failed. Retry?"
+                    if (status != Status.SUCCESS) {
+                        Button(
+                            onClick = {
+                                status = Status.FETCHING
+                                val stringRequest = StringRequest(Request.Method.GET, url, { html ->
+                                    status = Status.SUCCESS
+                                    val parsed = handelHTML(html)
+                                    // update the Compose state so UI recomposes
+                                    raplaResult = parsed
+                                    Log.d(
+                                        "MainActivity",
+                                        "Parsed Event Titles: ${parsed?.allEventTitles()}"
+                                    )
+                                }, { error ->
+                                    status = Status.ERROR
+                                    Log.e("MainActivity", "Error fetching data: $error")
+                                })
+                                volleyRequestQueue.add(stringRequest)
+                            },
+                            enabled = status == Status.READY
+                        ) {
+                            Text(
+                                when (status) {
+                                    Status.READY -> "Fetch Rapla Events"
+                                    Status.FETCHING -> "Fetching..."
+                                    Status.ERROR -> "Fetch failed. Retry?"
+                                    Status.SUCCESS -> "Refetch Rapla Events"
+                                }
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                getCalendarRequest()
                             }
-                        )
+                        ) { Text("Add events to Calendar") }
                     }
+
                 }
             }
         }
     }
 
-    fun html2RaplaEvent(html: String): RaplaResult? {
+    private fun handelHTML(html: String): RaplaResult? {
         val raplaParser = RaplaParser()
         return raplaParser.parse(html)
     }
 
+    private fun intializeGeofencing() {
+        val geofencingClient = LocationServices.getGeofencingClient(this)
+        val geofence = Geofence.Builder()
+            .setCircularRegion(
+                49.4738, 8.5344,
+                50f
+            )
+    }
+
     fun getCalendarRequest() {
+        val calendarPermissionRequest = registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            when {
+
+                permissions.getOrDefault(Manifest.permission.WRITE_CALENDAR, false) -> {
+                    Log.d("MainActivity", "Write access granted.")
+                }
+
+                permissions.getOrDefault(Manifest.permission.READ_CALENDAR, false) -> {
+                    Log.d("MainActivity", "Read access granted.")
+                }
+
+                else -> {
+                    Log.d("MainActivity", "No calendar access granted.")
+                }
+            }
+        }
+
         calendarPermissionRequest.launch(
             arrayOf(
                 Manifest.permission.READ_CALENDAR,
