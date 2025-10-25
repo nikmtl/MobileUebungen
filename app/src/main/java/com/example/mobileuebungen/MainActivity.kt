@@ -143,7 +143,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun intializeGeofencing() {
+    private fun initializeGeofencing() {
         val geofencingClient = LocationServices.getGeofencingClient(this)
         val geofence = Geofence.Builder()
             .setCircularRegion(
