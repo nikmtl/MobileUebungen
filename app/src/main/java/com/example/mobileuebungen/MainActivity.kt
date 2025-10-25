@@ -106,21 +106,20 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 status = Status.FETCHING
                                 val stringRequest = StringRequest(Request.Method.GET, url, { html ->
-                                    status = Status.SUCCESS
-                                    val parsed = handelHTML(html)
-                                    // update the Compose state so UI recomposes
-                                    raplaResult = parsed
+                                    val raplaParser = RaplaParser()
+                                    raplaResult = raplaParser.parse(html)
                                     Log.d(
                                         "MainActivity",
-                                        "Parsed Event Titles: ${parsed?.allEventTitles()}"
+                                        "Parsed Event Titles: ${raplaResult?.allEventTitles()}"
                                     )
+                                    status = Status.SUCCESS
                                 }, { error ->
                                     status = Status.ERROR
                                     Log.e("MainActivity", "Error fetching data: $error")
                                 })
                                 volleyRequestQueue.add(stringRequest)
                             },
-                            enabled = status == Status.READY
+                            enabled = status != Status.FETCHING
                         ) {
                             Text(
                                 when (status) {
@@ -134,7 +133,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         Button(
                             onClick = {
-                                getCalendarRequest()
+                                requestCalendarAccess()
                             }
                         ) { Text("Add events to Calendar") }
                     }
@@ -142,11 +141,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    private fun handelHTML(html: String): RaplaResult? {
-        val raplaParser = RaplaParser()
-        return raplaParser.parse(html)
     }
 
     private fun intializeGeofencing() {
@@ -158,7 +152,7 @@ class MainActivity : ComponentActivity() {
             )
     }
 
-    fun getCalendarRequest() {
+    fun requestCalendarAccess() { // Warning not woking yet
         val calendarPermissionRequest = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { permissions ->
