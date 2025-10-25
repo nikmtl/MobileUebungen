@@ -3,6 +3,8 @@ package com.example.mobileuebungen
 import RaplaParser
 import RaplaResult
 import android.Manifest
+import android.app.PendingIntent
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -12,8 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,16 +33,31 @@ import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 import java.time.LocalDate
+import kotlin.or
 
 
 class MainActivity : ComponentActivity() {
+
+    // PendingIntent to deliver geofence transitions to our BroadcastReceiver
+    private val geofencePendingIntent: PendingIntent by lazy {
+        val intent = Intent(this, GeofenceBroadcastReceiver::class.java).apply {
+            action = "com.example.mobileuebungen.ACTION_GEOFENCE_EVENT"
+        }
+        PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val volleyRequestQueue =
             Volley.newRequestQueue(this) // request queue for http calls with volley
 
+        // Initialize geofencing (will request permissions if needed)
+        initializeGeofencing()
+
+        enableEdgeToEdge()
 
         enableEdgeToEdge()
         setContent {
@@ -144,15 +161,67 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun initializeGeofencing() {
-        val geofencingClient = LocationServices.getGeofencingClient(this)
-        val geofence = Geofence.Builder()
-            .setCircularRegion(
-                49.4738, 8.5344,
-                50f
-            )
+        requestLocationAccess { granted ->
+            if (!granted) {
+                Log.d("MainActivity", "Location permission not granted - cannot initialize geofencing")
+                return@requestLocationAccess
+            }
+
+            val geofencingClient = LocationServices.getGeofencingClient(this)
+
+            val geofence = Geofence.Builder()
+                .setRequestId("dhbw-campus")
+                .setCircularRegion(49.4738, 8.5344, 500f)
+                .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
+                .build()
+
+            val geofencingRequest = GeofencingRequest.Builder()
+                .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+                .addGeofence(geofence)
+                .build()
+
+            try {
+                geofencingClient.addGeofences(geofencingRequest, geofencePendingIntent)
+                    .addOnSuccessListener { Log.d("MainActivity", "Geofence added successfully") }
+                    .addOnFailureListener { e -> Log.e("MainActivity", "Failed to add geofence", e) }
+            } catch (securityException: SecurityException) {
+                Log.e("MainActivity", "Missing location permission", securityException)
+            }
+        }
     }
 
-    fun requestCalendarAccess() { // Warning not woking yet
+    private fun requestLocationAccess(onResult: (Boolean) -> Unit) {
+        val locationPermissionRequest = registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            val fine = permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false)
+            val coarse = permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false)
+
+            when {
+                fine -> {
+                    Log.d("MainActivity", "Fine location access granted.")
+                    onResult(true)
+                }
+                coarse -> {
+                    Log.d("MainActivity", "Coarse location access granted.")
+                    onResult(true)
+                }
+                else -> {
+                    Log.d("MainActivity", "No location access granted.")
+                    onResult(false)
+                }
+            }
+        }
+
+        locationPermissionRequest.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
+
+     fun requestCalendarAccess() { // Warning not woking yet
         val calendarPermissionRequest = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { permissions ->
